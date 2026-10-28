@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="ko" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Monochrome Serenade Notes</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            serif: ['"Noto Serif KR"', 'serif'],
+            mono: ['"JetBrains Mono"', 'monospace']
+          },
+          keyframes: {
+            spinSlow: {
+              '0%': { transform: 'rotate(0deg)' },
+              '100%': { transform: 'rotate(360deg)' }
+            }
+          },
+          animation: {
+            'spin-slow': 'spinSlow 12s linear infinite'
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Noto Serif KR & JetBrains Mono Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Serif+KR:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      font-family: 'Noto Serif KR', serif;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .dark ::-webkit-scrollbar-thumb {
+      background: #3f3f46;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #d4d4d8;
+      border-radius: 4px;
+    }
+    [contenteditable=true]:empty:before {
+      content: attr(placeholder);
+      color: #a1a1aa;
+      pointer-events: none;
+      display: block;
+    }
+    .dark [contenteditable=true]:empty:before {
+      color: #52525b;
+    }
+    .note-content img {
+      max-width: 100%;
+      border-radius: 8px;
+      margin: 1.5rem 0;
+      border: 1px solid rgba(161, 161, 170, 0.2);
+    }
+    .spin-paused {
+      animation-play-state: paused !important;
+    }
+  </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
+
+  <!-- GLOBAL NAVIGATION HEADER -->
+  <header class="h-16 border-b border-zinc-200 dark:border-zinc-800/80 px-4 md:px-8 flex items-center justify-between bg-zinc-100/70 dark:bg-zinc-900/70 backdrop-blur z-20 flex-shrink-0">
+    <div class="flex items-center space-x-3">
+      <button id="navBrandBtn" class="flex items-center space-x-2.5 text-left group">
+        <div class="w-8 h-8 rounded-lg bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 flex items-center justify-center font-serif font-bold text-base shadow-sm group-hover:scale-105 transition">
+          銘
+        </div>
+        <div>
+          <span class="font-bold tracking-tight text-base font-serif block leading-none">명조 서재</span>
+          <span class="text-[10px] font-mono text-zinc-400 dark:text-zinc-500">Personal Archive</span>
+        </div>
+      </button>
+    </div>
+
+    <!-- Right Header Controls -->
+    <div class="flex items-center space-x-2 md:space-x-3">
+      <!-- Dark/Light Theme Switcher -->
+      <button id="themeToggleBtn" class="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg text-zinc-600 dark:text-zinc-400 transition" title="화면 테마 전환">
+        <i data-lucide="moon" id="themeIcon" class="w-4 h-4"></i>
+      </button>
+
+      <!-- User Secret Status / Login Button -->
+      <div id="authStatusContainer" class="flex items-center">
+        <button id="authModalTriggerBtn" class="px-3 py-1.5 text-xs font-serif bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 hover:opacity-90 rounded-lg transition flex items-center space-x-1.5 shadow-sm">
+          <i data-lucide="lock" class="w-3.5 h-3.5"></i>
+          <span id="authStatusText">서재 인증</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN CONTAINER (HOME VIEW & EDITOR VIEW) -->
+  <div class="flex-1 relative overflow-hidden flex flex-col">
+
+    <!-- READ ONLY BANNER (Shown in share mode) -->
+    <div id="readOnlyBanner" class="bg-zinc-200/90 dark:bg-zinc-900/90 border-b border-zinc-300 dark:border-zinc-800 px-6 py-2 flex items-center justify-between text-xs text-zinc-600 dark:text-zinc-400 hidden z-10">
+      <div class="flex items-center space-x-2">
+        <i data-lucide="eye" class="w-4 h-4 text-zinc-500"></i>
+        <span><strong>읽기 전용 공유 페이지:</strong> 작성자의 정보를 비공개로 보호하며 조작할 수 없습니다.</span>
+      </div>
+      <button id="goToHomeDirectBtn" class="underline hover:text-zinc-900 dark:hover:text-white font-mono">내 서재 홈으로 이동</button>
+    </div>
+
+    <!-- VIEW 1: HOME PAGE (Grid Note List) -->
+    <section id="homeView" class="flex-1 overflow-y-auto p-4 md:p-8 max-w-6xl w-full mx-auto pb-28">
+      
+      <!-- Home Header Bar -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+        <div>
+          <h1 class="text-xl md:text-2xl font-bold font-serif tracking-tight text-zinc-900 dark:text-zinc-100">나의 기록들</h1>
+          <p class="text-xs text-zinc-500 dark:text-zinc-400 mt-1 font-serif">생각과 문장을 안전하고 정갈하게 보관합니다.</p>
+        </div>
+
+        <div class="flex items-center space-x-3">
+          <!-- Search Bar -->
+          <div class="relative flex-1 md:w-64">
+            <i data-lucide="search" class="w-4 h-4 absolute left-3 top-2.5 text-zinc-400"></i>
+            <input type="text" id="homeSearchInput" placeholder="기록 검색..." class="w-full pl-9 pr-3 py-1.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-xs placeholder-zinc-400 focus:outline-none focus:border-zinc-400 dark:focus:border-zinc-600 transition shadow-sm">
+          </div>
+
+          <!-- New Note Create Button (+) -->
+          <button id="homeCreateNoteBtn" class="py-2 px-4 bg-zinc-900 hover:bg-zinc-800 text-zinc-100 dark:bg-zinc-100 dark:hover:bg-zinc-200 dark:text-zinc-900 rounded-lg text-xs font-serif font-medium flex items-center space-x-2 transition shadow-md whitespace-nowrap">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            <span>새 노트 작성</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Grid Cards Note List Container -->
+      <div id="gridNoteContainer" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+        <div class="col-span-full py-20 text-center text-zinc-400 font-serif text-sm">
+          서재를 불러오는 중입니다...
+        </div>
+      </div>
+    </section>
+
+    <!-- VIEW 2: EDITOR PAGE (Writing & Editing View) -->
+    <section id="editorView" class="flex-1 overflow-y-auto flex flex-col bg-zinc-50 dark:bg-zinc-950 hidden pb-28">
+      
+      <!-- Editor Top Toolbar -->
+      <div class="h-12 border-b border-zinc-200 dark:border-zinc-800/80 px-4 md:px-8 flex items-center justify-between bg-zinc-100/50 dark:bg-zinc-900/40 sticky top-0 z-10 backdrop-blur">
+        <div class="flex items-center space-x-3">
+          <!-- Back to Home Button -->
+          <button id="backToHomeBtn" class="flex items-center space-x-1.5 text-xs text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 font-serif transition py-1 px-2 rounded-md hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50">
+            <i data-lucide="arrow-left" class="w-4 h-4"></i>
+            <span>목록으로</span>
+          </button>
+          
+          <div class="h-4 w-px bg-zinc-300 dark:bg-zinc-800"></div>
+
+          <!-- Auto-save Status Indicator -->
+          <div id="statusBadge" class="flex items-center space-x-1.5 px-2 py-0.5 rounded-full bg-zinc-200/70 dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-800 text-[11px] text-zinc-600 dark:text-zinc-400 font-mono">
+            <span class="w-2 h-2 rounded-full bg-zinc-400" id="statusDot"></span>
+            <span id="statusText">대기 중</span>
+          </div>
+        </div>
+
+        <!-- Editor Actions -->
+        <div class="flex items-center space-x-1 md:space-x-2">
+          <!-- Image Insert Button -->
+          <label id="uploadImgBtnLabel" class="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-lg cursor-pointer transition" title="이미지 첨부">
+            <i data-lucide="image" class="w-4 h-4"></i>
+            <input type="file" id="imageInput" accept="image/*" class="hidden">
+          </label>
+
+          <!-- Read-Only Share Button -->
+          <button id="editorShareBtn" class="p-2 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-zinc-600 dark:text-zinc-400 rounded-lg transition" title="읽기 전용 링크 공유">
+            <i data-lucide="share-2" class="w-4 h-4"></i>
+          </button>
+
+          <!-- Delete Note Button -->
+          <button id="editorDeleteBtn" class="p-2 hover:bg-red-100 dark:hover:bg-red-950/40 text-zinc-400 hover:text-red-600 rounded-lg transition" title="노트 삭제">
+            <i data-lucide="trash-2" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Editor Content Workspace -->
+      <div class="flex-1 px-6 py-8 md:px-16 lg:px-24 max-w-3xl w-full mx-auto">
+        <!-- Title Input -->
+        <input type="text" id="noteTitle" placeholder="제목을 입력하세요..." disabled class="w-full bg-transparent text-2xl md:text-3xl font-bold font-serif text-zinc-900 dark:text-zinc-100 border-none outline-none mb-3 placeholder-zinc-300 dark:placeholder-zinc-700 disabled:opacity-80">
+        
+        <!-- Metadata Info -->
+        <div class="flex items-center space-x-4 text-xs font-mono text-zinc-400 dark:text-zinc-500 mb-6 pb-4 border-b border-zinc-200 dark:border-zinc-900">
+          <span id="createdDate">작성: -</span>
+          <span id="updatedDate">수정: -</span>
+        </div>
+
+        <!-- Rich Content Editor Area -->
+        <div id="noteEditor" contenteditable="false" placeholder="명조체로 정갈하게 생각을 기록해보세요..." class="note-content min-h-[450px] outline-none text-zinc-800 dark:text-zinc-200 font-serif leading-relaxed text-base md:text-lg space-y-4"></div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <!-- FLOATING CD ROTATING MUSIC PLAYER (FIXED AT BOTTOM) -->
+  <div class="fixed bottom-0 left-0 right-0 z-30 bg-zinc-100/90 dark:bg-zinc-900/90 border-t border-zinc-200 dark:border-zinc-800 backdrop-blur px-4 py-2.5 shadow-2xl">
+    <div class="max-w-5xl mx-auto flex items-center justify-between gap-3">
+      
+      <!-- Left: CD Vinyl Animation & Cover -->
+      <div class="flex items-center space-x-3 min-w-0">
+        <div class="relative flex-shrink-0 cursor-pointer" id="cdVisualBtn" title="CD 중앙 커버 이미지 교체">
+          <div id="cdDisc" class="w-10 h-10 md:w-11 md:h-11 rounded-full border-2 border-zinc-400 dark:border-zinc-700 bg-zinc-900 shadow-md flex items-center justify-center relative overflow-hidden animate-spin-slow spin-paused">
+            <!-- Vinyl Grooves -->
+            <div class="absolute inset-0 rounded-full border border-zinc-800/50 pointer-events-none"></div>
+            <!-- Center Image -->
+            <img id="cdCoverImg" src="https://placehold.co/100x100/18181b/ffffff?text=CD" class="w-4 h-4 md:w-5 md:h-5 rounded-full object-cover z-10 border border-zinc-900">
+          </div>
+          <!-- Center Pin -->
+          <div class="w-1.5 h-1.5 rounded-full bg-zinc-200 dark:bg-zinc-950 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none"></div>
+        </div>
+
+        <div class="min-w-0">
+          <div id="musicTitle" class="text-xs font-medium truncate text-zinc-800 dark:text-zinc-200 font-serif max-w-[140px] sm:max-w-[220px]">재생 중인 음악 없음</div>
+          <div class="text-[10px] font-mono text-zinc-400" id="currentTime">00:00</div>
+        </div>
+      </div>
+
+      <!-- Center: Audio Progress Bar -->
+      <div class="flex-1 max-w-md hidden sm:block">
+        <input type="range" id="audioProgress" value="0" min="0" max="100" class="w-full h-1 bg-zinc-300 dark:bg-zinc-700 rounded-lg appearance-none cursor-pointer accent-zinc-800 dark:accent-zinc-200">
+      </div>
+
+      <!-- Right: Controls & Upload Triggers -->
+      <div class="flex items-center space-x-2 md:space-x-3 text-zinc-600 dark:text-zinc-400">
+        <!-- Upload Audio Button -->
+        <label class="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg cursor-pointer transition" title="음악 파일(MP3/WAV) 업로드">
+          <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+          <input type="file" id="audioFileInput" accept="audio/*" class="hidden">
+        </label>
+
+        <!-- Upload CD Cover Button -->
+        <label class="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg cursor-pointer transition" title="CD 중앙 커버 이미지 변경">
+          <i data-lucide="disc" class="w-4 h-4"></i>
+          <input type="file" id="coverFileInput" accept="image/*" class="hidden">
+        </label>
+
+        <!-- Play/Pause Button -->
+        <button id="playPauseBtn" class="p-2 bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 hover:scale-105 transition rounded-full shadow-sm">
+          <i data-lucide="play" id="playIcon" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+    </div>
+    <audio id="audioPlayer" class="hidden"></audio>
+  </div>
+
+  <!-- AUTH MODAL (Login / Register) -->
+  <div id="authModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 w-full max-w-sm rounded-2xl p-6 shadow-2xl space-y-5">
+      <div class="flex justify-between items-center">
+        <h3 class="text-base font-semibold font-serif text-zinc-900 dark:text-zinc-100 flex items-center space-x-2">
+          <i data-lucide="shield-check" class="w-4 h-4"></i>
+          <span>개인 서재 인증</span>
+        </h3>
+        <button id="closeAuthModalBtn" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <p class="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed font-serif">
+        나만의 노트 목록을 구글 Cloud에 안전하게 보관하고 스마트폰과 PC에서 동기화합니다.
+      </p>
+
+      <div class="space-y-3">
+        <button id="anonAuthBtn" class="w-full py-2.5 px-3 bg-zinc-900 hover:bg-zinc-800 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 font-serif font-medium rounded-lg text-xs flex items-center justify-center space-x-2 transition shadow-sm">
+          <i data-lucide="user-check" class="w-4 h-4"></i>
+          <span>원클릭 익명 서재 시작</span>
+        </button>
+
+        <div class="relative flex py-1 items-center">
+          <div class="flex-grow border-t border-zinc-200 dark:border-zinc-800"></div>
+          <span class="flex-shrink mx-3 text-[10px] font-mono text-zinc-400">또는 계정 접속</span>
+          <div class="flex-grow border-t border-zinc-200 dark:border-zinc-800"></div>
+        </div>
+
+        <form id="emailLoginForm" class="space-y-2.5">
+          <input type="email" id="authEmail" placeholder="이메일 주소" required class="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none">
+          <input type="password" id="authPassword" placeholder="비밀번호" required class="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md text-xs text-zinc-900 dark:text-zinc-100 focus:outline-none">
+          
+          <div class="flex space-x-2 pt-1">
+            <button type="button" id="emailSignUpBtn" class="flex-1 py-2 px-3 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-200 dark:hover:bg-zinc-800 text-xs rounded-md transition font-serif">회원가입</button>
+            <button type="submit" id="emailSignInBtn" class="flex-1 py-2 px-3 bg-zinc-800 text-white dark:bg-zinc-700 hover:bg-zinc-700 text-xs rounded-md transition font-serif">로그인</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION -->
+  <div id="toast" class="fixed bottom-16 right-5 px-4 py-2.5 bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 text-xs font-serif rounded-lg shadow-2xl translate-y-20 opacity-0 transition-all duration-300 z-50 flex items-center space-x-2">
+    <i data-lucide="info" class="w-4 h-4"></i>
+    <span id="toastMsg">알림</span>
+  </div>
+
+  <!-- FIREBASE BACKEND & LOGIC APPLICATION -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { 
+      getAuth, 
+      signInAnonymously, 
+      signInWithEmailAndPassword,
+      createUserWithEmailAndPassword,
+      onAuthStateChanged, 
+      signOut 
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { 
+      getFirestore, 
+      collection, 
+      doc, 
+      setDoc, 
+      getDoc, 
+      deleteDoc, 
+      onSnapshot,
+      serverTimestamp 
+    } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Firebase Config Initialization
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'monochrome-serenade-notes-v2';
+    const firebaseConfig = typeof __firebase_config !== 'undefined' 
+      ? JSON.parse(__firebase_config) 
+      : {
+          apiKey: "AIzaSyDemoKeyOnlyForTemplateTesting",
+          authDomain: "demo-app.firebaseapp.com",
+          projectId: "demo-app",
+          storageBucket: "demo-app.appspot.com",
+          messagingSenderId: "123456789",
+          appId: "1:123456789:web:abcdef"
+        };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    // App State Management
+    let currentUser = null;
+    let notes = [];
+    let currentNoteId = null;
+    let autoSaveTimer = null;
+    let isSharedViewMode = false;
+
+    // DOM References
+    const elements = {
+      navBrandBtn: document.getElementById('navBrandBtn'),
+      themeToggleBtn: document.getElementById('themeToggleBtn'),
+      themeIcon: document.getElementById('themeIcon'),
+      authStatusText: document.getElementById('authStatusText'),
+      authModalTriggerBtn: document.getElementById('authModalTriggerBtn'),
+      authModal: document.getElementById('authModal'),
+      closeAuthModalBtn: document.getElementById('closeAuthModalBtn'),
+      anonAuthBtn: document.getElementById('anonAuthBtn'),
+      emailLoginForm: document.getElementById('emailLoginForm'),
+      emailSignUpBtn: document.getElementById('emailSignUpBtn'),
+      authEmail: document.getElementById('authEmail'),
+      authPassword: document.getElementById('authPassword'),
+      readOnlyBanner: document.getElementById('readOnlyBanner'),
+      goToHomeDirectBtn: document.getElementById('goToHomeDirectBtn'),
+      // Views
+      homeView: document.getElementById('homeView'),
+      editorView: document.getElementById('editorView'),
+      gridNoteContainer: document.getElementById('gridNoteContainer'),
+      homeSearchInput: document.getElementById('homeSearchInput'),
+      homeCreateNoteBtn: document.getElementById('homeCreateNoteBtn'),
+      // Editor Controls
+      backToHomeBtn: document.getElementById('backToHomeBtn'),
+      statusBadge: document.getElementById('statusBadge'),
+      statusDot: document.getElementById('statusDot'),
+      statusText: document.getElementById('statusText'),
+      noteTitle: document.getElementById('noteTitle'),
+      noteEditor: document.getElementById('noteEditor'),
+      createdDate: document.getElementById('createdDate'),
+      updatedDate: document.getElementById('updatedDate'),
+      uploadImgBtnLabel: document.getElementById('uploadImgBtnLabel'),
+      imageInput: document.getElementById('imageInput'),
+      editorShareBtn: document.getElementById('editorShareBtn'),
+      editorDeleteBtn: document.getElementById('editorDeleteBtn'),
+      // Audio Player Elements
+      audioPlayer: document.getElementById('audioPlayer'),
+      playPauseBtn: document.getElementById('playPauseBtn'),
+      playIcon: document.getElementById('playIcon'),
+      cdDisc: document.getElementById('cdDisc'),
+      cdCoverImg: document.getElementById('cdCoverImg'),
+      audioFileInput: document.getElementById('audioFileInput'),
+      coverFileInput: document.getElementById('coverFileInput'),
+      musicTitle: document.getElementById('musicTitle'),
+      audioProgress: document.getElementById('audioProgress'),
+      currentTime: document.getElementById('currentTime')
+    };
+
+    lucide.createIcons();
+
+    // Dark/Light Theme Switcher
+    elements.themeToggleBtn.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+      const isDark = document.documentElement.classList.contains('dark');
+      elements.themeIcon.setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+      lucide.createIcons();
+    });
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      document.getElementById('toastMsg').textContent = msg;
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+      setTimeout(() => {
+        toast.classList.remove('translate-y-0', 'opacity-100');
+        toast.classList.add('translate-y-20', 'opacity-0');
+      }, 3000);
+    }
+
+    function checkShareUrlParam() {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get('share');
+    }
+
+    function getNotesCollection() {
+      return collection(db, 'artifacts', appId, 'public', 'data', 'notes');
+    }
+
+    // Router State Controller (Home View vs Editor View)
+    function switchView(viewName) {
+      if (viewName === 'home') {
+        elements.homeView.classList.remove('hidden');
+        elements.editorView.classList.add('hidden');
+        renderGridNotes(elements.homeSearchInput.value);
+      } else if (viewName === 'editor') {
+        elements.homeView.classList.add('hidden');
+        elements.editorView.classList.remove('hidden');
+      }
+    }
+
+    // Auth State Changed
+    onAuthStateChanged(auth, async (user) => {
+      currentUser = user;
+      updateAuthUI();
+
+      const sharedId = checkShareUrlParam();
+      if (sharedId) {
+        isSharedViewMode = true;
+        switchView('editor');
+        loadSharedNote(sharedId);
+      } else if (user) {
+        isSharedViewMode = false;
+        elements.readOnlyBanner.classList.add('hidden');
+        elements.editorDeleteBtn.classList.remove('hidden');
+        elements.uploadImgBtnLabel.classList.remove('hidden');
+        enableEditing(true);
+        listenToUserNotes();
+        switchView('home');
+      } else {
+        isSharedViewMode = true;
+        elements.readOnlyBanner.classList.remove('hidden');
+        elements.editorDeleteBtn.classList.add('hidden');
+        elements.uploadImgBtnLabel.classList.add('hidden');
+        enableEditing(false);
+        switchView('home');
+        renderGridNotes();
+      }
+    });
+
+    function updateAuthUI() {
+      if (currentUser) {
+        elements.authStatusText.textContent = '로그아웃';
+        elements.authModalTriggerBtn.onclick = () => signOut(auth);
+      } else {
+        elements.authStatusText.textContent = '서재 인증';
+        elements.authModalTriggerBtn.onclick = () => elements.authModal.classList.remove('hidden');
+      }
+    }
+
+    // Realtime Firestore Listener
+    function listenToUserNotes() {
+      if (!currentUser) return;
+
+      onSnapshot(getNotesCollection(), (snapshot) => {
+        notes = [];
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data.authorId === currentUser.uid) {
+            notes.push({ id: docSnap.id, ...data });
+          }
+        });
+
+        notes.sort((a, b) => (b.updatedAt?.seconds || 0) - (a.updatedAt?.seconds || 0));
+        renderGridNotes(elements.homeSearchInput.value);
+      }, (err) => {
+        console.error("Firestore Listen Error:", err);
+      });
+    }
+
+    // Render Home Grid Cards
+    function renderGridNotes(filterQuery = '') {
+      elements.gridNoteContainer.innerHTML = '';
+      
+      if (!currentUser && !isSharedViewMode) {
+        elements.gridNoteContainer.innerHTML = `
+          <div class="col-span-full py-16 text-center">
+            <i data-lucide="lock" class="w-10 h-10 mx-auto text-zinc-400 mb-3"></i>
+            <h3 class="font-serif font-bold text-base">개인 서재 인증이 필요합니다</h3>
+            <p class="text-xs text-zinc-400 font-serif mt-1 mb-4">로그인 후 실시간 동기화 메모장을 이용하실 수 있습니다.</p>
+            <button onclick="document.getElementById('authModal').classList.remove('hidden')" class="px-4 py-2 bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 rounded-lg text-xs font-serif">인증하기</button>
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      const filtered = notes.filter(n => 
+        (n.title || '').toLowerCase().includes(filterQuery.toLowerCase()) || 
+        (n.content || '').toLowerCase().includes(filterQuery.toLowerCase())
+      );
+
+      if (filtered.length === 0) {
+        elements.gridNoteContainer.innerHTML = `
+          <div class="col-span-full py-16 text-center text-zinc-400 font-serif text-xs border border-dashed border-zinc-300 dark:border-zinc-800 rounded-xl">
+            작성된 노특가 없습니다. 상단의 '새 노트 작성(+)' 버튼을 눌러보세요.
+          </div>
+        `;
+        return;
+      }
+
+      filtered.forEach(note => {
+        const temp = document.createElement('div');
+        temp.innerHTML = note.content || '';
+        const plainText = temp.textContent || temp.innerText || '내용 없음...';
+        const updatedStr = note.updatedAt ? new Date(note.updatedAt.seconds * 1000).toLocaleDateString('ko-KR') : '방금 전';
+
+        const card = document.createElement('div');
+        card.className = 'group bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800/80 rounded-xl p-5 hover:shadow-xl transition-all duration-200 flex flex-col justify-between cursor-pointer relative hover:-translate-y-0.5';
+        
+        card.innerHTML = `
+          <div>
+            <div class="flex items-start justify-between gap-2 mb-2">
+              <h3 class="font-serif font-semibold text-base text-zinc-900 dark:text-zinc-100 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition truncate">
+                ${escapeHtml(note.title || '제목 없음')}
+              </h3>
+              <button class="shareCardBtn text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 p-1" title="공유 링크 복사">
+                <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+            <p class="text-xs font-serif text-zinc-500 dark:text-zinc-400 line-clamp-3 leading-relaxed mb-4">
+              ${escapeHtml(plainText)}
+            </p>
+          </div>
+
+          <div class="flex items-center justify-between text-[11px] font-mono text-zinc-400 pt-3 border-t border-zinc-100 dark:border-zinc-800/50">
+            <span>${updatedStr}</span>
+            <button class="deleteCardBtn text-zinc-400 hover:text-red-500 p-1 transition opacity-0 group-hover:opacity-100" title="삭제">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        `;
+
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('.deleteCardBtn') || e.target.closest('.shareCardBtn')) return;
+          openEditor(note.id);
+        });
+
+        card.querySelector('.shareCardBtn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          copyShareLink(note.id);
+        });
+
+        card.querySelector('.deleteCardBtn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          deleteNote(note.id);
+        });
+
+        elements.gridNoteContainer.appendChild(card);
+      });
+
+      lucide.createIcons();
+    }
+
+    function openEditor(noteId) {
+      currentNoteId = noteId;
+      const note = notes.find(n => n.id === noteId);
+      if (!note) return;
+
+      elements.noteTitle.value = note.title || '';
+      elements.noteEditor.innerHTML = note.content || '';
+
+      const createdStr = note.createdAt ? new Date(note.createdAt.seconds * 1000).toLocaleString('ko-KR') : '-';
+      const updatedStr = note.updatedAt ? new Date(note.updatedAt.seconds * 1000).toLocaleString('ko-KR') : '-';
+      
+      elements.createdDate.textContent = `작성: ${createdStr}`;
+      elements.updatedDate.textContent = `수정: ${updatedStr}`;
+
+      updateStatusBadge('동기화 완료', 'bg-emerald-500');
+      switchView('editor');
+    }
+
+    async function createNewNote() {
+      if (!currentUser) {
+        elements.authModal.classList.remove('hidden');
+        return;
+      }
+
+      const newDocRef = doc(getNotesCollection());
+      const newNote = {
+        title: '',
+        content: '',
+        authorId: currentUser.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      };
+
+      try {
+        await setDoc(newDocRef, newNote);
+        currentNoteId = newDocRef.id;
+        elements.noteTitle.value = '';
+        elements.noteEditor.innerHTML = '';
+        elements.createdDate.textContent = '작성: 방금 전';
+        elements.updatedDate.textContent = '수정: 방금 전';
+        switchView('editor');
+        showToast("새 메모가 작성되었습니다.");
+      } catch (err) {
+        console.error("Creation Failed:", err);
+      }
+    }
+
+    async function loadSharedNote(noteId) {
+      try {
+        const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'notes', noteId);
+        const docSnap = await getDoc(docRef);
+
+        if (docSnap.exists()) {
+          const note = docSnap.data();
+          currentNoteId = noteId;
+          elements.noteTitle.value = note.title || '공유된 글';
+          elements.noteEditor.innerHTML = note.content || '';
+          
+          const createdStr = note.createdAt ? new Date(note.createdAt.seconds * 1000).toLocaleString('ko-KR') : '-';
+          const updatedStr = note.updatedAt ? new Date(note.updatedAt.seconds * 1000).toLocaleString('ko-KR') : '-';
+          
+          elements.createdDate.textContent = `작성: ${createdStr}`;
+          elements.updatedDate.textContent = `수정: ${updatedStr}`;
+
+          enableEditing(false);
+          elements.readOnlyBanner.classList.remove('hidden');
+          updateStatusBadge('읽기 전용', 'bg-zinc-400');
+          showToast("공유된 글을 불러왔습니다.");
+        } else {
+          elements.noteTitle.value = '찾을 수 없음';
+          elements.noteEditor.innerHTML = '<div class="text-center py-12 text-zinc-400">삭제되었거나 없는 공유 노트입니다.</div>';
+        }
+      } catch (err) {
+        console.error("Shared note load error:", err);
+      }
+    }
+
+    function triggerAutoSave() {
+      if (isSharedViewMode || !currentUser || !currentNoteId) return;
+
+      updateStatusBadge('저장 중...', 'bg-amber-500');
+
+      clearTimeout(autoSaveTimer);
+      autoSaveTimer = setTimeout(async () => {
+        const title = elements.noteTitle.value;
+        const content = elements.noteEditor.innerHTML;
+
+        try {
+          const noteRef = doc(db, 'artifacts', appId, 'public', 'data', 'notes', currentNoteId);
+          await setDoc(noteRef, {
+            title: title,
+            content: content,
+            updatedAt: serverTimestamp()
+          }, { merge: true });
+
+          updateStatusBadge('실시간 저장 완료', 'bg-emerald-500');
+        } catch (err) {
+          console.error("Auto save error:", err);
+          updateStatusBadge('저장 실패', 'bg-red-500');
+        }
+      }, 700);
+    }
+
+    async function deleteNote(id) {
+      if (!currentUser || isSharedViewMode) return;
+      if (!confirm("이 노트를 삭제하시겠습니까?")) return;
+
+      try {
+        const noteRef = doc(db, 'artifacts', appId, 'public', 'data', 'notes', id);
+        await deleteDoc(noteRef);
+        showToast("노트가 삭제되었습니다.");
+        if (currentNoteId === id) {
+          switchView('home');
+        }
+      } catch (err) {
+        console.error("Delete Error:", err);
+      }
+    }
+
+    function copyShareLink(noteId) {
+      const shareUrl = `${window.location.origin}${window.location.pathname}?share=${noteId}`;
+      const tempInput = document.createElement('input');
+      tempInput.value = shareUrl;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      document.execCommand('copy');
+      document.body.removeChild(tempInput);
+      showToast("읽기 전용 공유 링크가 복사되었습니다!");
+    }
+
+    function enableEditing(editable) {
+      elements.noteTitle.disabled = !editable;
+      elements.noteEditor.contentEditable = editable ? "true" : "false";
+    }
+
+    function updateStatusBadge(text, dotClass) {
+      elements.statusText.textContent = text;
+      elements.statusDot.className = `w-2 h-2 rounded-full ${dotClass}`;
+    }
+
+    // AUDIO PLAYER IMPLEMENTATION
+    elements.audioFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const url = URL.createObjectURL(file);
+      elements.audioPlayer.src = url;
+      elements.musicTitle.textContent = file.name.replace(/\.[^/.]+$/, "");
+      playAudio();
+      showToast("음악 파일이 재생 준비되었습니다.");
+    });
+
+    elements.coverFileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        elements.cdCoverImg.src = evt.target.result;
+        showToast("CD 커버 사진이 변경되었습니다.");
+      };
+      reader.readAsDataURL(file);
+    });
+
+    function playAudio() {
+      if (!elements.audioPlayer.src) {
+        showToast("음악 파일을 먼저 첨부해주세요.");
+        return;
+      }
+      elements.audioPlayer.play();
+      elements.playIcon.setAttribute('data-lucide', 'pause');
+      elements.cdDisc.classList.remove('spin-paused');
+      lucide.createIcons();
+    }
+
+    function pauseAudio() {
+      elements.audioPlayer.pause();
+      elements.playIcon.setAttribute('data-lucide', 'play');
+      elements.cdDisc.classList.add('spin-paused');
+      lucide.createIcons();
+    }
+
+    elements.playPauseBtn.addEventListener('click', () => {
+      if (elements.audioPlayer.paused) {
+        playAudio();
+      } else {
+        pauseAudio();
+      }
+    });
+
+    elements.audioPlayer.addEventListener('timeupdate', () => {
+      if (!elements.audioPlayer.duration) return;
+      const pct = (elements.audioPlayer.currentTime / elements.audioPlayer.duration) * 100;
+      elements.audioProgress.value = pct;
+      
+      const mins = Math.floor(elements.audioPlayer.currentTime / 60);
+      const secs = Math.floor(elements.audioPlayer.currentTime % 60);
+      elements.currentTime.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    });
+
+    elements.audioProgress.addEventListener('input', (e) => {
+      if (!elements.audioPlayer.duration) return;
+      elements.audioPlayer.currentTime = (e.target.value / 100) * elements.audioPlayer.duration;
+    });
+
+    // Image Insert Event
+    elements.imageInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file || file.size > 2 * 1024 * 1024) {
+        showToast("2MB 이하의 이미지만 업로드 가능합니다.");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const imgHtml = `<br><img src="${evt.target.result}" alt="Image"><br>`;
+        document.execCommand('insertHTML', false, imgHtml);
+        triggerAutoSave();
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Navigation and Button Bindings
+    elements.navBrandBtn.addEventListener('click', () => switchView('home'));
+    elements.backToHomeBtn.addEventListener('click', () => switchView('home'));
+    elements.homeCreateNoteBtn.addEventListener('click', createNewNote);
+    elements.editorShareBtn.addEventListener('click', () => copyShareLink(currentNoteId));
+    elements.editorDeleteBtn.addEventListener('click', () => deleteNote(currentNoteId));
+
+    elements.noteTitle.addEventListener('input', triggerAutoSave);
+    elements.noteEditor.addEventListener('input', triggerAutoSave);
+    elements.homeSearchInput.addEventListener('input', (e) => renderGridNotes(e.target.value));
+
+    elements.closeAuthModalBtn.addEventListener('click', () => elements.authModal.classList.add('hidden'));
+    elements.goToHomeDirectBtn.addEventListener('click', () => {
+      window.history.pushState({}, '', window.location.pathname);
+      isSharedViewMode = false;
+      elements.readOnlyBanner.classList.add('hidden');
+      switchView('home');
+    });
+
+    elements.anonAuthBtn.addEventListener('click', async () => {
+      try {
+        await signInAnonymously(auth);
+        elements.authModal.classList.add('hidden');
+        showToast("원클릭 익명 접속되었습니다.");
+      } catch (err) {
+        showToast("인증 실패: " + err.message);
+      }
+    });
+
+    elements.emailLoginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      try {
+        await signInWithEmailAndPassword(auth, elements.authEmail.value, elements.authPassword.value);
+        elements.authModal.classList.add('hidden');
+        showToast("로그인 성공!");
+      } catch (err) {
+        showToast("로그인 오류: " + err.message);
+      }
+    });
+
+    elements.emailSignUpBtn.addEventListener('click', async () => {
+      try {
+        await createUserWithEmailAndPassword(auth, elements.authEmail.value, elements.authPassword.value);
+        elements.authModal.classList.add('hidden');
+        showToast("회원가입 완료!");
+      } catch (err) {
+        showToast("회원가입 오류: " + err.message);
+      }
+    });
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>
